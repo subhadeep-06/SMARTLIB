@@ -1,0 +1,13 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+.aistudio/
+.vercel/
+.playwright-cli/
+data/smartlib-store.json
+backend/target/

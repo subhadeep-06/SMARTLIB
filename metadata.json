@@ -1,0 +1,6 @@
+{
+  "name": "SMARTLIB",
+  "description": "Enterprise Smart Library Management & Automation System — Transforming Traditional Libraries into Intelligent Digital Ecosystems.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
