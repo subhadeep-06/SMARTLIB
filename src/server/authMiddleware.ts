@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import type { UserRole } from './domainEngine';
-import { getStore, hashToken, persistStore, uid } from './store';
+import type { UserRole } from './domainEngine.js';
+import { getStore, hashToken, persistStore, uid } from './store.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'smartlib-dev-ephemeral-signing-key-change-in-prod';
 const ACCESS_TTL = process.env.JWT_ACCESS_EXPIRATION || '2h';

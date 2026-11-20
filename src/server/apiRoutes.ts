@@ -10,7 +10,7 @@ import {
   rotateRefreshToken,
   signAccessToken,
   type AuthedRequest,
-} from './authMiddleware';
+} from './authMiddleware.js';
 import {
   calculateOverdueFine,
   checkSeatConflict,
@@ -22,16 +22,17 @@ import {
   getNextFifoReservation,
   hasBranchPermission,
   type UserRole,
-} from './domainEngine';
+} from './domainEngine.js';
 import {
   addAuditLog,
   addNotification,
+  getStorageStatus,
   getStore,
   hashToken,
   persistStore,
   resolvePolicy,
   uid,
-} from './store';
+} from './store.js';
 import {
   INDIA_LOCALE,
   formatINR,
@@ -40,9 +41,23 @@ import {
   isValidIndianPhone,
   isValidIndianPinCode,
   roundInrAmount,
-} from './locale';
+} from './locale.js';
 
 export const apiRouter = express.Router();
+
+apiRouter.get('/health', (_req, res) => {
+  const storage = getStorageStatus();
+  ok(res, {
+    status: 'ok',
+    storageEngine: storage.engine,
+    mongodb: {
+      configured: storage.mongo.configured,
+      connected: storage.mongo.connected,
+      database: storage.mongo.database,
+    },
+    locale: INDIA_LOCALE,
+  });
+});
 
 function ok(res: Response, data: unknown, message = 'OK', meta?: Record<string, unknown>) {
   res.json({

@@ -11,3 +11,4 @@ coverage/
 .playwright-cli/
 data/smartlib-store.json
 backend/target/
+public/assets/aistudio/

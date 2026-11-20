@@ -3,7 +3,13 @@ import os from 'os';
 import path from 'path';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import type { LibraryPolicy, UserRole } from './domainEngine';
+import type { LibraryPolicy, UserRole } from './domainEngine.js';
+import {
+  getMongoStatus,
+  isMongoConfigured,
+  loadStateFromMongo,
+  saveStateToMongo,
+} from './mongoPersistence.js';
 
 const STORE_DIR = process.env.VERCEL
   ? path.join(os.tmpdir(), 'smartlib-data')
@@ -1476,6 +1482,70 @@ function migrateStoreToIndiaLocale(store: SmartLibStore): boolean {
   return dirty;
 }
 
+let mongoHydrated = false;
+let mongoDirty = false;
+let hydrationPromise: Promise<SmartLibStore> | null = null;
+let pendingFlushPromise: Promise<void> | null = null;
+
+export async function ensureStoreHydrated(): Promise<SmartLibStore> {
+  if (!isMongoConfigured()) {
+    return getStore();
+  }
+  if (mongoHydrated && cachedStore) {
+    return cachedStore;
+  }
+  if (!hydrationPromise) {
+    hydrationPromise = (async () => {
+      const remote = await loadStateFromMongo();
+      if (remote) {
+        cachedStore = remote;
+        const migrated = migrateStoreToIndiaLocale(cachedStore);
+        mongoHydrated = true;
+        if (migrated) {
+          await saveStateToMongo(cachedStore);
+        }
+        return cachedStore;
+      }
+      const seeded = getStore();
+      const saved = await saveStateToMongo(seeded);
+      if (saved) {
+        mongoHydrated = true;
+      }
+      return seeded;
+    })().finally(() => {
+      hydrationPromise = null;
+    });
+  }
+  return hydrationPromise;
+}
+
+export async function flushStore(): Promise<void> {
+  if (!isMongoConfigured() || !mongoDirty || !cachedStore) return;
+  if (pendingFlushPromise) {
+    await pendingFlushPromise;
+    return;
+  }
+  mongoDirty = false;
+  const snapshot = cachedStore;
+  pendingFlushPromise = (async () => {
+    const ok = await saveStateToMongo(snapshot);
+    if (!ok) {
+      mongoDirty = true;
+    }
+  })().finally(() => {
+    pendingFlushPromise = null;
+  });
+  await pendingFlushPromise;
+}
+
+export function getStorageStatus() {
+  const mongo = getMongoStatus();
+  return {
+    engine: mongo.configured && mongo.connected ? 'mongodb-atlas' : 'local-json',
+    mongo,
+  };
+}
+
 export function getStore(): SmartLibStore {
   if (cachedStore) return cachedStore;
   try {
@@ -1500,13 +1570,16 @@ export function getStore(): SmartLibStore {
 
 export function persistStore(): void {
   if (!cachedStore) return;
+  if (isMongoConfigured()) {
+    mongoDirty = true;
+  }
   try {
     if (!fs.existsSync(STORE_DIR)) {
       fs.mkdirSync(STORE_DIR, { recursive: true });
     }
     fs.writeFileSync(STORE_FILE, JSON.stringify(cachedStore, null, 2), 'utf-8');
   } catch {
-    // Serverless or read-only filesystem: keep state in memory
+    // Serverless or read-only filesystem: keep state in memory / MongoDB
   }
 }
 

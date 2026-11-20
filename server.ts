@@ -2,15 +2,15 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import 'dotenv/config';
-import { apiRouter } from './src/server/apiRoutes';
-import { getStore } from './src/server/store';
+import { apiRouter } from './src/server/apiRoutes.js';
+import { ensureStoreHydrated, flushStore } from './src/server/store.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const IS_PROD = process.env.NODE_ENV === 'production';
 
 async function bootstrap() {
-  // Initialize persistent document store & institutional seed data
-  getStore();
+  // Initialize persistent document store (MongoDB Atlas if MONGODB_URI is set, else local JSON)
+  await ensureStoreHydrated();
 
   const app = express();
   app.use(express.json({ limit: '4mb' }));
@@ -33,7 +33,20 @@ async function bootstrap() {
     next();
   });
 
-  app.use('/api', apiRouter);
+  app.use('/api', (req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+      const originalJson = res.json.bind(res);
+      res.json = ((body: unknown) => {
+        flushStore()
+          .catch((err) => console.error('[SMARTLIB] MongoDB flush error:', err))
+          .finally(() => {
+            originalJson(body);
+          });
+        return res;
+      }) as typeof res.json;
+    }
+    next();
+  }, apiRouter);
 
   if (!IS_PROD) {
     const { createServer: createViteServer } = await import('vite');
